@@ -3,7 +3,7 @@ from PIL import Image
 import pdb
 import os
 
-data_path = '/sda1/reid-data/SYSU RGB-IR Re-ID/SYSU-MM01'
+data_path = 'Sysumm01'
 
 rgb_cameras = ['cam1','cam2','cam4','cam5']
 ir_cameras = ['cam3','cam6']
@@ -53,7 +53,7 @@ def read_imgs(train_image):
     for img_path in train_image:
         # img
         img = Image.open(img_path)
-        img = img.resize((fix_image_width, fix_image_height), Image.ANTIALIAS)
+        img = img.resize((fix_image_width, fix_image_height), Image.LANCZOS)
         pix_array = np.array(img)
 
         train_img.append(pix_array) 

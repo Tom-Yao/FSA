@@ -71,7 +71,7 @@ def normalize(x, axis=-1):
     x = 1. * x / (torch.norm(x, 2, axis, keepdim=True).expand_as(x) + 1e-12)
     return x
 
-class TripletLoss_WRT(nn.Module):
+class TripletLoss_WRT(nn.Module):  # WRT: Weighted Regularized Triplet
     """Weighted Regularized Triplet'."""
 
     def __init__(self):
@@ -105,7 +105,7 @@ class TripletLoss_WRT(nn.Module):
         correct = torch.ge(closest_negative, furthest_positive).sum().item()
         return loss, correct
 
-class TripletLoss_ADP(nn.Module):
+class TripletLoss_ADP(nn.Module): # ADP: Adaptive Distance Penalty
     """Weighted Regularized Triplet'."""
 
     def __init__(self, alpha =1, gamma = 1, square = 0):

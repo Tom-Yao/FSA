@@ -182,20 +182,22 @@ class embed_net(nn.Module):
         self.gm_pool = gm_pool
         self.fsa_method = fsa_method
 
+    # 对输入图像进行前向传递
     def forward(self, x10, x11, x2, modal=0):
         if modal == 0:
+            # 公式为 x_aug^fsa=x+λF^(-1) [θe^(-jP(x) ) ]
             if self.fsa_method == 'FSA':
                 x10 = x10 + 0.8 * pha_unwrapping(x10)
                 x11 = x11 + 0.8 * pha_unwrapping(x11)
                 x2 = x2 + 0.8 * pha_unwrapping(x2)
                 x1 = torch.cat((x10, x11), 0)
-
+            # 公式为 x_aug^(ex_p)=x+λF^(-1) [θe^(-jP(x^' ) ) ]
             elif self.fsa_method == 'Ex_P':
                 x10 = x10 + 0.8 * pha_unwrapping(x2)
                 x11 = x11 + 0.8 * pha_unwrapping(x2)
                 x2 = x2 + 0.8 * pha_unwrapping(x11)
                 x1 = torch.cat((x10, x11), 0)
-
+            # 公式为 x_aug^(mix_a)=F^(-1) [[(1-α)A(x)+αA(x^' )] e^(-jP(x) ) ]
             elif self.fsa_method == 'Mix_A':
                 x10 = mixup(x10, x2)
                 x11 = mixup(x11, x2)
@@ -203,10 +205,8 @@ class embed_net(nn.Module):
                 x1 = torch.cat((x10, x11), 0)
             else:
                 x1 = torch.cat((x10, x11), 0)
-
             x1 = self.visible_module(x1)
             x2 = self.thermal_module(x2)
-
             x = torch.cat((x1, x2), 0)
         elif modal == 1:
             x = self.visible_module(x10)

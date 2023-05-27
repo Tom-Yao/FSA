@@ -78,22 +78,28 @@ parser.add_argument('--square', default=1, type=int, metavar='square',
 parser.add_argument('--fsa_method', default='FSA', type=str,
                     help='Mix_A or Ex_P or FSA or None')
 
-
+# 从命令行解析参数
 args = parser.parse_args()
+# 设置GPU
 os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
-
+# 设置随机种子
 set_seed(args.seed)
 
+# 设置数据集
 dataset = args.dataset
 if dataset == 'sysu':
-    data_path = '/media/hijune/datadisk/reid-data/SYSU RGB-IR Re-ID/SYSU-MM01'
+    # data_path = '/home/tom/PycharmProjects/FSA/Sysumm01'
+    data_path = 'Sysumm01'
     log_path = args.log_path + 'sysu_log/' + '0.8/3/'
-    test_mode = [1, 2]  # thermal to visible
+    # 将测试模式设置为 [1, 2]，表示将红外图像转换为可见光图像进行测试
+    test_mode = [1, 2]
 elif dataset == 'regdb':
-    data_path = '/media/hijune/datadisk/reid-data/RegDB/'
+    data_path = '/home/tom/PycharmProjects/FSA/RegDB/'
     log_path = args.log_path + 'regdb_log/'
-    test_mode = [2, 1]  # visible to thermal
+    # 将测试模式设置为 [2, 1]，表示将可见光图像转换为红外图像进行测试
+    test_mode = [2, 1]
 
+# 设置模型保存路径
 checkpoint_path = args.model_path
 
 if not os.path.isdir(log_path):
@@ -103,32 +109,44 @@ if not os.path.isdir(checkpoint_path):
 if not os.path.isdir(args.vis_log_path):
     os.makedirs(args.vis_log_path)
 
+# 设置文件名后缀为数据集名称
 suffix = dataset
+# 如果训练方法为 ADP
 if args.method == 'adp':
+    # 设置文件名后缀为 ADP
     suffix += '_{}_joint_co_nog_ch_nog_sq{}'.format(args.method, args.square)
 else:
+    # 设置文件名后缀为训练方法
     suffix += '_{}'.format(args.method)
-
+# 如果使用通道增强
 if args.augc == 1:
+    # 设置文件名后缀为通道增强
     suffix += '_aug_G'
-
+# 如果设置了随机擦除的参数
 if args.rande > 0:
+    # 设置文件名后缀为随机擦除
     suffix += '_erase_{}'.format(args.rande)
 
+# 增加后缀
 suffix += '_p{}_n{}_lr_{}_seed_{}_fsa_method_{}'.format(args.num_pos, args.batch_size, args.lr, args.seed, args.fsa_method)
-
+# 如果优化器不为 SGD
 if not args.optim == 'sgd':
+    # 增加optim后缀
     suffix = suffix + '_' + args.optim
-
+# 如果数据集为 RegDB
 if dataset == 'regdb':
+    # 增加trial后缀
     suffix += '_trial_{}'.format(args.trial)
 
+# 将控制台输出重定向到指定的日志文件中
 sys.stdout = Logger(log_path + suffix + '_os.txt')
-
+# 定义可视化日志的保存路径
 vis_log_dir = args.vis_log_path + suffix + '/'
-
+# 如果可视化日志的保存路径不存在，则创建该路径
 if not os.path.isdir(vis_log_dir):
     os.makedirs(vis_log_dir)
+
+# 创建一个SummaryWriter对象，用于保存可视化日志信息
 writer = SummaryWriter(vis_log_dir)
 print("==========\nArgs:{}\n==========".format(args))
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -137,57 +155,69 @@ start_epoch = 0
 
 print('==> Loading data..')
 # Data loading code
+# 将数据转换为标准正太分布，使模型更容易收敛(标准化)
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+# 数据转换
 transform_train_list = [
+    # 将图像转换成PILImage
     transforms.ToPILImage(),
+    # 对图像周围进行10个像素的填充
     transforms.Pad(10),
+    # 将图像随机裁剪成288*146大小
     transforms.RandomCrop((args.img_h, args.img_w)),
+    # 将图像随机水平翻转
     transforms.RandomHorizontalFlip(),
+    # 将图像转换成Tensor
     transforms.ToTensor(),
+    # 将图像标准化
     normalize]
-
+# 测试集数据转换
 transform_test = transforms.Compose([
+    # 将图像转换成PILImage
     transforms.ToPILImage(),
+    # 将图像裁剪成288*144大小
     transforms.Resize((args.img_h, args.img_w)),
+    # 将图像转换成Tensor
     transforms.ToTensor(),
+    # 将图像标准化
     normalize])
-
+# 随机擦除
 if args.rande > 0:
     transform_train_list = transform_train_list + [ChannelRandomErasing(probability=args.rande)]
-
+# 通道增强
 if args.augc == 1:
-    # transform_train_list = transform_train_list +  [ChannelAdap(probability =0.5)]
     transform_train_list = transform_train_list + [ChannelAdapGray(probability=0.5)]
-
 transform_train = transforms.Compose(transform_train_list)
 
 end = time.time()
 if dataset == 'sysu':
-    # training set
+    # 训练集为sysu数据集
     trainset = SYSUData(data_path, transform=transform_train)
-    # generate the idx of each person identity
+    # 生成每个人身份的idx
     color_pos, thermal_pos = GenIdx(trainset.train_color_label, trainset.train_thermal_label)
 
-    # testing set
+    # 查询的图片，标签，相机
     query_img, query_label, query_cam = process_query_sysu(data_path, mode=args.mode)
+    # 图库里的候选图片，标签，相机
     gall_img, gall_label, gall_cam = process_gallery_sysu(data_path, mode=args.mode, trial=0)
 
 elif dataset == 'regdb':
-    # training set
+    # 训练集为regdb数据集
     trainset = RegDBData(data_path, args.trial, transform=transform_train)
-    # generate the idx of each person identity
+    # 生成每个人身份的idx
     color_pos, thermal_pos = GenIdx(trainset.train_color_label, trainset.train_thermal_label)
 
-    # testing set
+    # 查询的图片，标签，查询的是可见光图像
     query_img, query_label = process_test_regdb(data_path, trial=args.trial, modal='visible')
+    # 图库里的候选图片，标签，查询的是热红外图像
     gall_img, gall_label = process_test_regdb(data_path, trial=args.trial, modal='thermal')
 
+# 数据封装
 gallset = TestData(gall_img, gall_label, transform=transform_test, img_size=(args.img_w, args.img_h))
 queryset = TestData(query_img, query_label, transform=transform_test, img_size=(args.img_w, args.img_h))
-
-# testing data loader
-gall_loader = data.DataLoader(gallset, batch_size=args.test_batch, shuffle=False, num_workers=args.workers)
-query_loader = data.DataLoader(queryset, batch_size=args.test_batch, shuffle=False, num_workers=args.workers)
+# 数据加载
+gall_loader = data.DataLoader(gallset, batch_size=args.test_batch, shuffle=False, num_workers=0)
+query_loader = data.DataLoader(queryset, batch_size=args.test_batch, shuffle=False, num_workers=0)
 
 n_class = len(np.unique(trainset.train_color_label))
 nquery = len(query_label)
@@ -206,11 +236,16 @@ print('  ------------------------------')
 print('Data Loading Time:\t {:.3f}'.format(time.time() - end))
 
 print('==> Building model..')
+# 构建模型
+# 加载的模型是否为基本模型，是则设置no_local='off'和gm_pool='off'，否则设置为no_local='on'和gm_pool='on'
 if args.method == 'base':
+    # 创建神经网络模型net
     net = embed_net(n_class, no_local='off', gm_pool='off', arch=args.arch, fsa_method=args.fsa_method)
 else:
     net = embed_net(n_class, no_local='on', gm_pool='on', arch=args.arch, fsa_method=args.fsa_method)
+# net传送到设备上
 net.to(device)
+# 使用cudnn加速
 cudnn.benchmark = True
 
 if len(args.resume) > 0:
@@ -225,18 +260,20 @@ if len(args.resume) > 0:
     else:
         print('==> no checkpoint found at {}'.format(args.resume))
 
-# define loss function
+# 定义损失函数(交叉熵损失函数)
 criterion_id = nn.CrossEntropyLoss()
 if args.method == 'agw':
+    # 加权正则化三元组损失
     criterion_tri = TripletLoss_WRT()
     # loader_batch = args.batch_size * args.num_pos
     # criterion_tri= OriTripletLoss(batch_size=loader_batch, margin=args.margin)
 elif args.method == 'adp':
+    # 自适应距离惩罚三元组损失
     criterion_tri = TripletLoss_ADP(alpha=args.alpha, gamma=args.gamma, square=args.square)
 else:
     loader_batch = args.batch_size * args.num_pos
     criterion_tri = OriTripletLoss(batch_size=loader_batch, margin=args.margin)
-
+# 推送到GPU计算
 criterion_id.to(device)
 criterion_tri.to(device)
 
@@ -254,6 +291,7 @@ if args.optim == 'sgd':
         weight_decay=5e-4, momentum=0.9, nesterov=True)
 
 
+# 定义调整学习率
 def adjust_learning_rate(optimizer, epoch):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
     if epoch < 10:
@@ -272,8 +310,9 @@ def adjust_learning_rate(optimizer, epoch):
     return lr
 
 
-def train(epoch):
-    current_lr = adjust_learning_rate(optimizer, epoch)
+# 定义训练函数
+def train(epoch):  # 定义训练函数
+    current_lr = adjust_learning_rate(optimizer, epoch)  #
     train_loss = AverageMeter()
     id_loss = AverageMeter()
     tri_loss = AverageMeter()
@@ -281,11 +320,9 @@ def train(epoch):
     batch_time = AverageMeter()
     correct = 0
     total = 0
-
     # switch to train mode
     net.train()
     end = time.time()
-
     for batch_idx, (input10, input11, input20, label1, label2) in enumerate(trainloader):
 
         labels = torch.cat((label1, label1, label2), 0)
@@ -300,7 +337,7 @@ def train(epoch):
 
         feat, out0, = net(input10, input11, input20)
 
-        loss_id = criterion_id(out0, labels)
+        loss_id = criterion_id(out0, labels.long())
 
         loss_tri, batch_acc = criterion_tri(feat, labels)
         correct += (batch_acc / 2)
@@ -400,8 +437,8 @@ def test(epoch):
 
 # training
 print('==> Start Training...')
+print(start_epoch)
 for epoch in range(start_epoch, 100 - start_epoch):
-
     print('==> Preparing Data Loader...')
     # identity sampler
     sampler = IdentitySampler(trainset.train_color_label, trainset.train_thermal_label, color_pos, thermal_pos,
@@ -412,18 +449,14 @@ for epoch in range(start_epoch, 100 - start_epoch):
     print(epoch)
     print(trainset.cIndex)
     print(trainset.tIndex)
-
     loader_batch = args.batch_size * args.num_pos
-
-    trainloader = data.DataLoader(trainset, batch_size=loader_batch, sampler=sampler, num_workers=args.workers,
+    trainloader = data.DataLoader(trainset, batch_size=loader_batch, sampler=sampler, num_workers=0,
                                   drop_last=True)
-
     # training
     train(epoch)
 
     if epoch >= 0:  # and epoch % 2 == 0:
         print('Test Epoch: {}'.format(epoch))
-
         # testing
         cmc, mAP, mINP, cmc_att, mAP_att, mINP_att = test(epoch)
         # save model
@@ -438,21 +471,11 @@ for epoch in range(start_epoch, 100 - start_epoch):
                 'epoch': epoch,
             }
             torch.save(state, checkpoint_path + suffix + '_best.t')
-
-        # # save model
-        # if dataset == 'sysu' and epoch > 40 and epoch % args.save_epoch == 0:
-        # state = {
-        # 'net': net.state_dict(),
-        # 'cmc': cmc,
-        # 'mAP': mAP,
-        # 'epoch': epoch,
-        # }
-        # torch.save(state, checkpoint_path + suffix + '_epoch_{}.t'.format(epoch))
-
         print(
-            'POOL:   Rank-1: {:.2%} | Rank-5: {:.2%} | Rank-10: {:.2%}| Rank-20: {:.2%}| mAP: {:.2%}| mINP: {:.2%}'.format(
-                cmc[0], cmc[4], cmc[9], cmc[19], mAP, mINP))
+            'POOL:   Rank-1: {:.2%} | Rank-5: {:.2%} | Rank-10: {:.2%}| Rank-20: {:.2%}| mAP: {:.2%}| mINP: {:.2%}'
+            .format(cmc[0], cmc[4], cmc[9], cmc[19], mAP, mINP))
         print(
-            'FC:   Rank-1: {:.2%} | Rank-5: {:.2%} | Rank-10: {:.2%}| Rank-20: {:.2%}| mAP: {:.2%}| mINP: {:.2%}'.format(
-                cmc_att[0], cmc_att[4], cmc_att[9], cmc_att[19], mAP_att, mINP_att))
+            'FC:   Rank-1: {:.2%} | Rank-5: {:.2%} | Rank-10: {:.2%}| Rank-20: {:.2%}| mAP: {:.2%}| mINP: {:.2%}'
+            .format(cmc_att[0], cmc_att[4], cmc_att[9], cmc_att[19], mAP_att, mINP_att))
         print('Best Epoch [{}]'.format(best_epoch))
+

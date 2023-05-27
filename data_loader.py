@@ -46,7 +46,7 @@ class ChannelExchange(object):
 class SYSUData(data.Dataset):
     def __init__(self, data_dir,  transform=None, colorIndex = None, thermalIndex = None):
         
-        data_dir = '/media/hijune/datadisk/reid-data/SYSU RGB-IR Re-ID/SYSU-MM01'
+        data_dir = 'Sysumm01'
         # Load training images (path) and labels
         train_color_image = np.load(data_dir + 'train_rgb_resized_img.npy')
         self.train_color_label = np.load(data_dir + 'train_rgb_resized_label.npy')

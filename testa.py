@@ -59,7 +59,7 @@ os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
 dataset = args.dataset
 if dataset == 'sysu':
-    data_path = '/media/hijune/datadisk/reid-data/SYSU RGB-IR Re-ID/SYSU-MM01'
+    data_path = 'Sysumm01'
     n_class = 395
     test_mode = [1, 2]
 elif dataset =='regdb':
@@ -240,6 +240,7 @@ if dataset == 'sysu':
                   .format(args.resume, checkpoint['epoch']))
         else:
             print('==> no checkpoint found at {}'.format(args.resume))
+        print(model_path)
 
     # testing set
     query_img, query_label, query_cam = process_query_sysu(data_path, mode=args.mode)
@@ -256,7 +257,7 @@ if dataset == 'sysu':
     print("  ------------------------------")
 
     queryset = TestData(query_img, query_label, transform=transform_test, img_size=(args.img_w, args.img_h))
-    query_loader = data.DataLoader(queryset, batch_size=args.test_batch, shuffle=False, num_workers=4)
+    query_loader = data.DataLoader(queryset, batch_size=args.test_batch, shuffle=False, num_workers=0)
     print('Data Loading Time:\t {:.3f}'.format(time.time() - end))
 
     query_feat_pool, query_feat_fc = extract_query_feat(query_loader)
@@ -264,7 +265,7 @@ if dataset == 'sysu':
         gall_img, gall_label, gall_cam = process_gallery_sysu(data_path, mode=args.mode, trial=trial)
 
         trial_gallset = TestData(gall_img, gall_label, transform=transform_visible, img_size=(args.img_w, args.img_h))
-        trial_gall_loader = data.DataLoader(trial_gallset, batch_size=args.test_batch, shuffle=False, num_workers=4)
+        trial_gall_loader = data.DataLoader(trial_gallset, batch_size=args.test_batch, shuffle=False, num_workers=0)
 
         gall_feat_pool, gall_feat_fc = extract_gall_feat(trial_gall_loader)
 
@@ -320,13 +321,13 @@ elif dataset == 'regdb':
         gall_img, gall_label = process_test_regdb(data_path, trial=test_trial, modal='thermal')
 
         gallset = TestData(gall_img, gall_label, transform=transform_test, img_size=(args.img_w, args.img_h))
-        gall_loader = data.DataLoader(gallset, batch_size=args.test_batch, shuffle=False, num_workers=args.workers)
+        gall_loader = data.DataLoader(gallset, batch_size=args.test_batch, shuffle=False, num_workers=0)
 
         nquery = len(query_label)
         ngall = len(gall_label)
 
         queryset = TestData(query_img, query_label, transform=transform_test, img_size=(args.img_w, args.img_h))
-        query_loader = data.DataLoader(queryset, batch_size=args.test_batch, shuffle=False, num_workers=4)
+        query_loader = data.DataLoader(queryset, batch_size=args.test_batch, shuffle=False, num_workers=0)
         print('Data Loading Time:\t {:.3f}'.format(time.time() - end))
 
 
@@ -386,3 +387,7 @@ print('FC:     Rank-1: {:.2%} | Rank-5: {:.2%} | Rank-10: {:.2%}| Rank-20: {:.2%
         cmc[0], cmc[4], cmc[9], cmc[19], mAP, mINP))
 print('POOL:   Rank-1: {:.2%} | Rank-5: {:.2%} | Rank-10: {:.2%}| Rank-20: {:.2%}| mAP: {:.2%}| mINP: {:.2%}'.format(
     cmc_pool[0], cmc_pool[4], cmc_pool[9], cmc_pool[19], mAP_pool, mINP_pool))
+
+if __name__ == '__main__':
+    from multiprocessing import freeze_support
+    freeze_support()
